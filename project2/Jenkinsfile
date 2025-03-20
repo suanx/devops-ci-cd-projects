@@ -7,7 +7,7 @@ pipeline {
     }
 
     stages {
-        stage('Clone Repository') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/suanx/devops-ci-cd-projects.git'
             }
@@ -15,28 +15,30 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'ls -l project2'  // Check if Dockerfile exists
-                sh 'docker build -t $DOCKER_IMAGE -f project2/Dockerfile project2/'
+                script {
+                    sh 'docker build -t $DOCKER_IMAGE project2/' // Adjust path if needed
+                }
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'jenkins-dock', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push $DOCKER_IMAGE
-                    docker logout
-                    '''
+                withCredentials([usernamePassword(credentialsId: 'jenkins-dock', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_IMAGE
+                        '''
+                    }
                 }
             }
         }
 
         stage('Deploy to EC2') {
             steps {
-                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ec2', keyFileVariable: 'EC2_KEY', usernameVariable: 'EC2_USER')]) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ec2', keyFileVariable: 'instanceconn', passphraseVariable: 'usrname', usernameVariable: 'usrnamevar')]) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY $EC2_USER@$EC2_IP "
+                    ssh -o StrictHostKeyChecking=no -i "$instanceconn" $usrnamevar@$EC2_IP "
                     docker stop webdeck || true &&
                     docker pull $DOCKER_IMAGE &&
                     docker run -d -p 80:80 --name webdeck $DOCKER_IMAGE
