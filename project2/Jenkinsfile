@@ -34,18 +34,19 @@ pipeline {
             }
         }
 
-        stage('Deploy to EC2') {
+                stage('Deploy to EC2') {
             steps {
                 withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ec2', keyFileVariable: 'instanceconn')]) {
                     sh '''
                     ssh -o StrictHostKeyChecking=no -i "$instanceconn" ec2-user@$EC2_IP "
-                    docker stop webdeck || true &&
-                    docker pull $DOCKER_IMAGE &&
-                    docker run -d -p 80:80 --name webdeck $DOCKER_IMAGE
+                    sudo docker stop webdeck || true &&
+                    sudo docker pull $DOCKER_IMAGE &&
+                    sudo docker run -d -p 80:80 --name webdeck $DOCKER_IMAGE
                     "
                     '''
                 }
             }
         }
+
     }
 }
