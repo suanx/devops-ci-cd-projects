@@ -9,21 +9,22 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', url: 'https://github.com/suanx/devops-ci-cd-projects.git'
+                git branch: 'main', url: 'https://github.com/suanx/webdeck-repo.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'ls -l project2'  // Check if Dockerfile exists
+                sh 'docker build -t $DOCKER_IMAGE -f project2/Dockerfile project2/'
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'jenkins-dock', passwordVariable: 'jenkinstoredusrpass', usernameVariable: 'jenkinstoredusrname')]) {
+                withCredentials([usernamePassword(credentialsId: 'jenkins-dock', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     sh '''
-                    docker login -u $jenkinstoredusrname -p $jenkinstoredusrpass
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                     docker push $DOCKER_IMAGE
                     docker logout
                     '''
@@ -31,14 +32,14 @@ pipeline {
             }
         }
 
-        stage('Deploy on EC2') {
+        stage('Deploy to EC2') {
             steps {
-                sshagent(['jenkins-ec2']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ec2', keyFileVariable: 'EC2_KEY', usernameVariable: 'EC2_USER')]) {
                     sh '''
-                    ssh ec2-user@$EC2_IP "
-                    docker stop myapp || true &&
+                    ssh -o StrictHostKeyChecking=no -i $EC2_KEY $EC2_USER@$EC2_IP "
+                    docker stop webdeck || true &&
                     docker pull $DOCKER_IMAGE &&
-                    docker run -d -p 80:80 --name myapp $DOCKER_IMAGE
+                    docker run -d -p 80:80 --name webdeck $DOCKER_IMAGE
                     "
                     '''
                 }
