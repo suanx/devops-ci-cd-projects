@@ -1,0 +1,42 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'suanx/webdeck'
+        EC2_IP = '54.210.59.213'
+    }
+
+    stages {
+        stage('Clone Repo') {
+            steps {
+                git 'https://github.com/your-username/your-repo.git'
+            }
+        }
+
+        stage('Build & Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'jenkins-dock', usernameVariable: 'jenkinstoredusrname', passwordVariable: 'jenkinstoredusrpass')]) {
+                    sh '''
+                    docker build -t $DOCKER_IMAGE .
+                    echo $jenkinstoredusrpass | docker login -u $jenkinstoredusrname --password-stdin
+                    docker push $DOCKER_IMAGE
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy on EC2') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ec2', keyFileVariable: 'ec2-connector', usernameVariable: 'ec2-user')]) {
+                    sh '''
+                    ssh -i $ec2-connector ec2-user@$EC2_IP "
+                    docker pull $DOCKER_IMAGE &&
+                    docker stop myapp || true &&
+                    docker run -d -p 80:80 --name myapp $DOCKER_IMAGE
+                    "
+                    '''
+                }
+            }
+        }
+    }
+}
